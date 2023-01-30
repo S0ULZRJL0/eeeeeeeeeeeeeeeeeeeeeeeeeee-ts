@@ -1,0 +1,479 @@
+local old = nil
+local a = require(game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChildOfClass("LocalScript").Camera) 
+
+local oldHeadshotSound = game:GetService("SoundService").PlayerHitHeadshot.SoundId
+
+local AimbotEnabled = false
+local gmt = getrawmetatable(game) 
+setreadonly(gmt, false) 
+local oldindex = gmt.__index 
+local Players = game:GetService("Players"); 
+local LocalPlayer = Players.LocalPlayer; 
+local Mouse = LocalPlayer:GetMouse(); 
+local Cameras = game:GetService("Workspace").Camera; 
+local CurrentCamera = game:GetService("Workspace").CurrentCamera 
+local worldToViewportPoint = CurrentCamera.worldToViewportPoint 
+local HeadOff = Vector3.new(0, 0.5, 0) 
+local LegOff = Vector3.new(0,3,0) 
+local XRTransparency = 0.9 
+
+_G.Esp_Players = false
+
+_G.OreEspSettings = {
+	iron = {
+		enabled = false,
+		colour = Color3.fromRGB(199, 172, 120),
+	},
+	nitrate = {
+		enabled = false,
+		colour = Color3.fromRGB(248, 248, 248),
+	},
+	stone = {
+		enabled = false,
+		colour = Color3.fromRGB(205, 205, 205),
+	},
+}
+
+--//Ignore below
+if game.PlaceId ~= 9570110925 then
+	print("Incorrect Game")
+	return
+end
+repeat
+	task.wait()
+until game:IsLoaded()
+local OreEspSettings = _G.OreEspSettings
+if OreEspSettings == nil then
+	return
+end
+local function get_text(text, position)
+	local distance = math.floor((position - workspace.Ignore.LocalCharacter.Middle.Position).Magnitude)
+	local final_text = tostring(text) .. " [" .. tostring(distance) .. "]"
+	return tostring(final_text)
+end
+local function worldtoviewport(position)
+	local a, b = workspace.CurrentCamera:WorldToViewportPoint(position)
+	return Vector2.new(a.X, a.Y), b
+end
+
+local function add_ore_esp(part, text, colour)
+	if not OreEspSettings[string.lower(tostring(text))] then
+		return
+	end
+
+	if not OreEspSettings[string.lower(tostring(text))].enabled then
+		return
+	end
+
+	local drawing_text = Drawing.new("Text")
+	drawing_text.Outline = true
+	drawing_text.Center = true
+	drawing_text.Visible = false
+	drawing_text.Font = 2
+	drawing_text.Size = 13
+	drawing_text.Color = colour
+	local rendersteploop =
+		game:GetService("RunService").Stepped:connect(
+	function()
+		pcall(
+			function()
+				if not part:IsDescendantOf(workspace) or not OreEspSettings or not OreEspSettings[string.lower(tostring(text))] or not OreEspSettings[string.lower(tostring(text))].enabled then
+					drawing_text:Remove()
+					rendersteploop:Disconnect()
+				end
+				local part_pos = part.Position
+				local screen_pos, on_screen = worldtoviewport(part_pos)
+				if not on_screen then
+					drawing_text.Visible = false
+					rendersteploop:Disconnect()
+				end
+				drawing_text.Visible = true
+				drawing_text.Text = get_text(text, part_pos)
+				drawing_text.Color = OreEspSettings[string.lower(tostring(text))].colour
+				drawing_text.Position = screen_pos
+				rendersteploop:Disconnect()
+			end
+		)
+	end
+	)
+end
+
+local function add_player_esp(part, text, colour)
+	if not _G.Esp_Players then
+		return
+	end
+
+	local drawing_text = Drawing.new("Text")
+	drawing_text.Outline = true
+	drawing_text.Center = true
+	drawing_text.Visible = false
+	drawing_text.Font = 2
+	drawing_text.Size = 13
+	drawing_text.Color = colour
+	local rendersteploop =
+		game:GetService("RunService").Stepped:connect(
+	function()
+		pcall(
+			function()
+				if not part:IsDescendantOf(workspace) or not _G.Esp_Players then
+					drawing_text:Remove()
+					rendersteploop:Disconnect()
+				end
+				local part_pos = part.Position
+				local screen_pos, on_screen = worldtoviewport(part_pos)
+				if not on_screen then
+					drawing_text.Visible = false
+					rendersteploop:Disconnect()
+				end
+				drawing_text.Visible = true
+				drawing_text.Text = get_text(text, part_pos)
+				drawing_text.Color = _G.EspColor_SwiftyHub or Color3.fromRGB(255,255,255)
+				drawing_text.Position = screen_pos
+				rendersteploop:Disconnect()
+			end
+		)
+	end
+	)
+end
+
+local function filter_models(v,oreName)
+	if (not v:IsA("Model")) then
+		return
+	end
+	local is_part = v:FindFirstChild("Part") or nil
+	local children = v:GetChildren()
+	local child_amount = #children
+	if is_part then
+		if oreName == "Stone" then
+			if child_amount == 1 then
+				add_ore_esp(is_part, "Stone", OreEspSettings.stone.colour)
+			end
+		else
+			for _, v_child in pairs(children) do
+				local brickcolor = v_child.BrickColor
+				local is_ore = v_child.ClassName == "MeshPart" and v_child.Name == "Part"
+				if is_ore then
+					if oreName == "Nitrate" then
+						if brickcolor == BrickColor.new("Institutional white") then
+							add_ore_esp(v_child, "Nitrate", OreEspSettings.nitrate.colour)
+						end
+					elseif oreName == "Iron" then
+						if brickcolor == BrickColor.new("Burlap") then
+							add_ore_esp(v_child, "Iron", OreEspSettings.iron.colour)
+						end
+					end
+				end
+			end
+		end
+	else
+		if oreName == "Player" then
+			if v:FindFirstChild("Head") and v:FindFirstChild("HumanoidRootPart") and v:FindFirstChildOfClass("Humanoid") then
+				add_player_esp(v:WaitForChild("Head"),"Player", _G.EspColor_SwiftyHub or Color3.fromRGB(255, 255, 255))
+			end
+		end
+	end
+end
+
+workspace.ChildAdded:Connect(
+	function(model)
+		
+		if #model:GetChildren() <= 1 then
+			filter_models(model,"Stone")
+		else
+			if model:FindFirstChild("Head") and model:FindFirstChild("HumanoidRootPart") and model:FindFirstChildOfClass("Humanoid") then
+				filter_models(model,"Player")
+			else
+				for _, v_child in pairs(model:GetChildren()) do
+					local brickcolor = v_child.BrickColor
+					local is_ore = v_child.ClassName == "MeshPart" and v_child.Name == "Part"
+					if is_ore then
+						if brickcolor == BrickColor.new("Institutional white") then
+							add_ore_esp(v_child, "Nitrate", OreEspSettings.nitrate.colour)
+						elseif brickcolor == BrickColor.new("Burlap") then
+							add_ore_esp(v_child, "Iron", OreEspSettings.iron.colour)
+						end
+					end
+				end
+			end
+		end
+	end
+)
+
+function CreateCham(name,parent,face)
+	if not parent:FindFirstChild(name.. face) then
+		local SurfaceGui = Instance.new("SurfaceGui",parent)
+		SurfaceGui.Parent = parent
+		SurfaceGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+		SurfaceGui.Face = Enum.NormalId[face]
+		SurfaceGui.LightInfluence = 0
+		SurfaceGui.ResetOnSpawn = false
+		SurfaceGui.Name = name.. face
+		SurfaceGui.AlwaysOnTop = true
+		local Frame = Instance.new("Frame",SurfaceGui)
+		Frame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		Frame.Size = UDim2.new(1,0,1,0)
+		Frame.Name = "ChamFrame"
+	end
+end
+
+
+local fovcircle = Drawing.new("Circle")
+fovcircle.Visible = false
+fovcircle.Radius = 120 
+fovcircle.Color = Color3.fromRGB(255,255,255) 
+fovcircle.Thickness = 1.5 
+fovcircle.Filled = false 
+fovcircle.Transparency = 0.5 
+fovcircle.Position = Vector2.new(CurrentCamera.ViewportSize.X / 2, CurrentCamera.ViewportSize.Y / 2) 
+
+local MainUI = loadstring(game:HttpGet"https://raw.githubusercontent.com/dawid-scripts/UI-Libs/main/fluxlib.txt")()
+local MainWindow = MainUI:Window("TRIDENT SURVIVAL SCRIPT", "SWIFTY ON TOP!!!!", Color3.fromRGB(255, 110, 48), Enum.KeyCode.LeftControl)
+
+local CameraTab = MainWindow:Tab("Camera","http://www.roblox.com/asset/?id=6023426915")
+local WorldTab = MainWindow:Tab("World","http://www.roblox.com/asset/?id=6023426915")
+local EspTab = MainWindow:Tab("Esp","http://www.roblox.com/asset/?id=6023426915")
+local OreEspTab = MainWindow:Tab("Ore Esp","http://www.roblox.com/asset/?id=6023426915")
+
+CameraTab:Button("Crosshair", "This Will Put A Rainbow Crosshair On Your Screen", function()
+	crosshairlength=15
+	loadstring(game:HttpGetAsync("https://pastebin.com/raw/HnQMfe5p"))()
+end)
+
+CameraTab:Bind("Aimbot", Enum.KeyCode.V, function()
+	AimbotEnabled = not AimbotEnabled
+end)
+
+CameraTab:Slider("Fov", "Makes Your Field Of View Higher/Lower", 70, 125,10,function(t)
+	gmt.__index = newcclosure(function(self,b) 
+		if b == "FieldOfView" then 
+			return t
+		end 
+		return oldindex(self,b) 
+	end)  
+end)
+
+CameraTab:Toggle("Fov Circle", "Puts An Fov Circle On Your Screen",false, function(t) 
+	fovcircle.Visible = t
+end)
+
+CameraTab:Slider("Fov Circle Radius", "Makes Your Fov Circle Radius Higher/Lower", 120, 500,10,function(t)
+	fovcircle.Radius = t
+end)
+
+CameraTab:Colorpicker("Fov Circle Color", Color3.fromRGB(255, 255, 255), function(t)
+	fovcircle.Color = t
+end)
+
+EspTab:Toggle("Esp", "Esps All Players",false, function(t) 
+	_G.Esp_Players = t
+	for index, model in pairs(workspace:GetChildren()) do
+		filter_models(model,"Player")
+	end
+end)
+
+EspTab:Colorpicker("ESP Color", Color3.fromRGB(255, 255, 255), function(t)
+	_G.EspColor_SwiftyHub = t
+end)
+
+OreEspTab:Toggle("Nitrate Esp", "Esps All Nitrate Ores",false, function(t) 
+	OreEspSettings.nitrate.enabled = t
+	for index, model in pairs(workspace:GetChildren()) do
+		filter_models(model,"Nitrate")
+	end
+end)
+
+OreEspTab:Colorpicker("Nitrate Esp Color", Color3.fromRGB(248, 248, 248), function(t)
+	OreEspSettings.nitrate.colour = t
+end)
+
+OreEspTab:Toggle("Iron Esp", "Esps All Iron Ores",false, function(t) 
+	OreEspSettings.iron.enabled = t
+	for index, model in pairs(workspace:GetChildren()) do
+		filter_models(model,"Iron")
+	end
+end)
+
+OreEspTab:Colorpicker("Iron Esp Color", Color3.fromRGB(199, 172, 120), function(t)
+	OreEspSettings.iron.colour = t
+end)
+
+OreEspTab:Toggle("Stone Esp", "Esps All Stone Ores",false, function(t) 
+	OreEspSettings.stone.enabled = t
+	for index, model in pairs(workspace:GetChildren()) do
+		filter_models(model,"Stone")
+	end
+end)
+
+OreEspTab:Colorpicker("Stone Esp Color", Color3.fromRGB(205, 205, 205), function(t)
+	OreEspSettings.stone.colour = t
+end)
+
+WorldTab:Bind("Give All", Enum.KeyCode.F, function()
+	game:GetService("ReplicatedStorage").e:FireServer(106, 1, true) 
+	game:GetService("ReplicatedStorage").e:FireServer(106, 2, true) 
+	game:GetService("ReplicatedStorage").e:FireServer(106, 3, true) 
+	game:GetService("ReplicatedStorage").e:FireServer(106, 4, true) 
+	game:GetService("ReplicatedStorage").e:FireServer(106, 5, true) 
+	game:GetService("ReplicatedStorage").e:FireServer(106, 6, true) 
+	game:GetService("ReplicatedStorage").e:FireServer(106, 7, true) 
+	game:GetService("ReplicatedStorage").e:FireServer(106, 8, true) 
+	game:GetService("ReplicatedStorage").e:FireServer(106, 9, true) 
+	game:GetService("ReplicatedStorage").e:FireServer(106, 10, true) 
+	game:GetService("ReplicatedStorage").e:FireServer(106, 11, true) 
+	game:GetService("ReplicatedStorage").e:FireServer(106, 12, true) 
+	game:GetService("ReplicatedStorage").e:FireServer(106, 13, true) 
+	game:GetService("ReplicatedStorage").e:FireServer(106, 14, true) 
+	game:GetService("ReplicatedStorage").e:FireServer(106, 15, true) 
+	game:GetService("ReplicatedStorage").e:FireServer(106, 16, true) 
+	game:GetService("ReplicatedStorage").e:FireServer(106, 17, true) 
+	game:GetService("ReplicatedStorage").e:FireServer(106, 18, true) 
+	game:GetService("ReplicatedStorage").e:FireServer(106, 19, true) 
+	game:GetService("ReplicatedStorage").e:FireServer(106, 20, true) 
+	game:GetService("ReplicatedStorage").e:FireServer(106, 21, true) 
+	game:GetService("ReplicatedStorage").e:FireServer(106, 22, true) 
+end)
+
+WorldTab:Dropdown("Headshot Sound", {"Normal","Rust","Bruh"}, function(t)
+	if t == "Normal" then
+		game:GetService("SoundService").PlayerHitHeadshot.Volume = 2
+		game:GetService("SoundService").PlayerHitHeadshot.SoundId = (oldHeadshotSound) 
+		game:GetService("SoundService").PlayerHitHeadshot.Playing = true
+	elseif t == "Rust" then
+		game:GetService("SoundService").PlayerHitHeadshot.SoundId = ("rbxassetid://4764109000") 
+		game:GetService("SoundService").PlayerHitHeadshot.Volume = 2
+		game:GetService("SoundService").PlayerHitHeadshot.Playing = true 
+	elseif t == "Bruh" then
+		game:GetService("SoundService").PlayerHitHeadshot.Volume = 2
+		game:GetService("SoundService").PlayerHitHeadshot.SoundId = ("rbxassetid://4275842574") 
+		game:GetService("SoundService").PlayerHitHeadshot.Playing = true 
+	end
+end)
+
+local localPlayer = game:GetService("Players").LocalPlayer
+local UserInputService = game:GetService("UserInputService")
+local UserGameSettings = UserSettings():GetService("UserGameSettings")
+local default_sens = 0
+
+local delt_sensitivity = default_sens / UserGameSettings.MouseSensitivity
+
+local function isPlayer(child)
+	if child:IsA("Model") and child.Name == "Model" and child:FindFirstChild("Humanoid") then
+		return true
+	else
+		return false
+	end
+end
+
+local childAdded = {}
+Players = {}
+
+function RegisterChildAdded(f)
+	table.insert(childAdded, f)
+end
+
+workspace.ChildAdded:Connect(function(child)
+	if isPlayer(child) then
+		for i,v in pairs(childAdded) do
+			v(child)
+		end
+	end
+end)
+
+task.spawn(function() 
+	while wait(1.5) do
+		Players = {}
+		for i,v in pairs(game:GetService("Workspace"):GetChildren()) do
+			if v:FindFirstChild("Head") and v.Head:FindFirstChild("Nametag") and v.Head.Nametag:FindFirstChild("tag") then
+				table.insert(Players, v)
+			end
+		end
+	end
+end)
+
+local function viewportPoint(ret, ...)
+	if type(ret) == "boolean" then
+		local pos, vis = workspace.CurrentCamera:WorldToViewportPoint(...)
+		return pos
+	else
+		return workspace.CurrentCamera:WorldToViewportPoint(ret, ...)
+	end
+end
+
+local function GetPlayer()
+	local last_distance = math.huge
+	local target = nil
+
+	for i, v in pairs(Players) do
+		local sp, visible = viewportPoint(v:WaitForChild("HumanoidRootPart", math.huge).Position)
+		local mouse_loc = UserInputService:GetMouseLocation()
+		local distance = (Vector2.new(mouse_loc.X, mouse_loc.Y) - Vector2.new(sp.X, sp.Y)).Magnitude
+
+		if last_distance > distance and visible then
+			if fovcircle.Visible then
+				if distance < fovcircle.Radius then
+					target = v
+					last_distance = distance
+				end
+			else
+				target = v
+				last_distance = distance
+			end
+		end
+
+	end
+
+	return target
+end
+
+_G.Aimbot = {}
+
+local Aiming = false
+
+UserInputService.InputBegan:Connect(function(inputObject)
+	if (inputObject.UserInputType == Enum.UserInputType.MouseButton2) and AimbotEnabled then
+		Aiming = true
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(inputObject)
+	if (inputObject.UserInputType == Enum.UserInputType.MouseButton2) and AimbotEnabled then
+		Aiming = false
+	end
+end)
+
+UserGameSettings:GetPropertyChangedSignal("MouseSensitivity"):Connect(function()
+	if AimbotEnabled then
+		delt_sensitivity = default_sens / UserGameSettings.MouseSensitivity
+		UserInputService.MouseDeltaSensitivity = default_sens
+	end
+end)
+game:GetService("RunService").RenderStepped:Connect(function()
+	if _G.NameEspSwiftyHub then
+		for _,Character in pairs(game.Workspace:GetDescendants()) do
+			if Character:FindFirstChild("Head") and Character:FindFirstChildOfClass("Humanoid") and Character:WaitForChild("Head"):FindFirstChild("ESP") and Character:WaitForChild("Head"):WaitForChild("ESP"):FindFirstChild("tag") and Character:WaitForChild("Head"):FindFirstChild("Nametag") and Character:WaitForChild("Head"):WaitForChild("Nametag"):FindFirstChild("tag") then
+				Character:WaitForChild("Head"):WaitForChild("ESP").Enabled = true
+				Character:WaitForChild("Head"):WaitForChild("ESP").tag.Text = "Player"
+			end
+		end
+	else
+		for _,Character in pairs(game.Workspace:GetDescendants()) do
+			if Character:FindFirstChild("Head") and Character:FindFirstChildOfClass("Humanoid") and Character:WaitForChild("Head"):FindFirstChild("ESP") and Character:WaitForChild("Head"):WaitForChild("ESP"):FindFirstChild("tag") and Character:WaitForChild("Head"):FindFirstChild("Nametag") and Character:WaitForChild("Head"):WaitForChild("Nametag"):FindFirstChild("tag") then
+				Character:WaitForChild("Head"):WaitForChild("ESP").Enabled = false
+				Character:WaitForChild("Head"):WaitForChild("ESP").tag.Text = "Player"
+			end
+		end
+	end
+
+	if Aiming and AimbotEnabled then
+		local p = GetPlayer()
+
+		if p ~= nil then
+			local pos = viewportPoint(p.Head.Position + Vector3.new(0,0.007 * (p.Head.Position - game:GetService("Workspace").Ignore.LocalCharacter.Top.Position).Magnitude,0))
+			local mouse_loc = game:GetService("UserInputService"):GetMouseLocation()
+
+			mousemoverel((pos.X - mouse_loc.X) * .25, (pos.Y - mouse_loc.Y) * .25)
+		end
+	end
+end)
+
+print("loaded Swifty HUB")
